@@ -19,6 +19,14 @@ let lastMessageTime = Date.now(); // Track when we last got a Redis message
 const PORT = 3005;
 const CHANNEL = "orders-147";
 
+// 📏 Receipt paper width in millimeters. The sample PDFs are generated for 80 mm.
+// This value is updated automatically by install.bat based on the printer's roll size.
+const RECEIPT_WIDTH_MM = 80;
+
+// Width the PDFs are natively generated at. If RECEIPT_WIDTH_MM differs from this,
+// the print is scaled to fit the loaded roll so the content isn't cut off.
+const NATIVE_RECEIPT_WIDTH_MM = 80;
+
 const LOG_DIR = path.join(__dirname, "logs");
 if (!fs.existsSync(LOG_DIR)) {
   fs.mkdirSync(LOG_DIR, { recursive: true });
@@ -233,7 +241,19 @@ async function handleMessage(channel, message) {
       }
     }
 
-    await printer.print(tmpPath, { printer: printerName });
+    const printOptions = { printer: printerName };
+
+    // 📏 Adjust the print to the configured receipt width. The PDFs are generated
+    // for NATIVE_RECEIPT_WIDTH_MM (80 mm); if the roll is a different size we let
+    // SumatraPDF scale the page to fit the printable area, otherwise print 1:1.
+    if (RECEIPT_WIDTH_MM === NATIVE_RECEIPT_WIDTH_MM) {
+      printOptions.scale = "noscale";
+    } else {
+      printOptions.scale = "fit";
+      log(`Receipt width set to ${RECEIPT_WIDTH_MM}mm — scaling print to fit roll.`, "📏");
+    }
+
+    await printer.print(tmpPath, printOptions);
     if (isUrl && fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
 
     log("Print job sent successfully!", "✅");
